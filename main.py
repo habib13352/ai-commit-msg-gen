@@ -1,4 +1,6 @@
 # main.py
+# test 1, will it work of the rip?
+# no, what about test 2?
 
 import sys
 import subprocess

@@ -4,6 +4,8 @@ __pycache__/
 
 # Ignore environment file containing secrets
 .env
+*.env
+.env.*
 
 # Ignore any IDE/editor-specific folders
 .vscode/
