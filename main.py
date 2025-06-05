@@ -84,16 +84,31 @@ def main():
         print("No staged changes found. Please `git add <files>` before running this tool.")
         sys.exit(0)
 
+    # 1a. Also grab the list of staged filenames
+    try:
+        result_files = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=True
+        )
+        file_list = [line.strip() for line in result_files.stdout.splitlines() if line.strip()]
+    except subprocess.CalledProcessError:
+        file_list = []
+
     # 2. If dry run, just print and exit
     if args.dry_run:
         print("Diff to be sent to GPT:\n")
         print(diff_text)
+        print("\nFiles changed:", ", ".join(file_list) if file_list else "None")
         sys.exit(0)
 
     # 3. Generate commit message suggestions and token stats
     print(f"Using model: {args.model}, generating {args.num_suggestions} suggestions...")
     suggestions, input_tokens, output_tokens = generate_commit_messages(
         diff_text,
+        file_list=file_list,
         n_suggestions=args.num_suggestions,
         model=args.model
     )
@@ -107,7 +122,7 @@ def main():
         print(f"{idx}. {msg}")
 
     # 5. Ask the user to pick one or type a custom message
-    print("\nEnter the number of the suggestion to use (1-{0}), or press ENTER to type your own:".format(args.num_suggestions))
+    print(f"\nEnter the number of the suggestion to use (1-{args.num_suggestions}), or press ENTER to type your own:")
     user_choice = input(f"Choice [1-{args.num_suggestions} or ENTER]: ").strip()
 
     if user_choice.isdigit() and 1 <= int(user_choice) <= args.num_suggestions:
@@ -130,6 +145,7 @@ def main():
         "timestamp": timestamp,
         "repo": repo_info.get("repo", ""),
         "branch": repo_info.get("branch", ""),
+        "files_changed": file_list,
         "diff": diff_text,
         "suggestions": suggestions,
         "chosen_message": final_message,

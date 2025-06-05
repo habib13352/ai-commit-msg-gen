@@ -1,7 +1,6 @@
 # openai_helper.py
 
 import os
-import json # is this needed?
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -16,18 +15,26 @@ if not OPENAI_API_KEY:
 # Initialize OpenAI client (v1.x syntax)
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-def generate_commit_messages(diff_text: str, n_suggestions: int = 3, model: str = "gpt-3.5-turbo"):
+def generate_commit_messages(
+    diff_text: str,
+    file_list: list[str],             # New parameter: list of staged filenames
+    n_suggestions: int = 3,
+    model: str = "gpt-3.5-turbo"
+):
     """
-    Sends diff to OpenAI and returns:
+    Sends diff (and file list) to OpenAI and returns:
     - list of suggestions
     - input_tokens, output_tokens for cost tracking
     """
+    # Build a comma-separated list of changed files
+    files_str = ", ".join(file_list) if file_list else "None"
+    
     prompt = (
         "You are a professional assistant that writes clear, concise Git commit messages "
-        "based on a staged diff. Do NOT include any emojis or bullet points—just plain text.\n"
-        "Below is the unified diff of staged changes (git diff --cached):\n\n"
-        f"{diff_text}\n\n"
-        f"Based on these changes, suggest {n_suggestions} commit message(s), "
+        "based on which files have changed and the code diff. Do NOT include any emojis or bullet points—just plain text.\n\n"
+        f"Files changed: {files_str}\n\n"
+        f"Unified diff of staged changes:\n{diff_text}\n\n"
+        f"Based on these files and the diff, suggest {n_suggestions} commit message(s), "
         "each on its own line without any emojis or numbering."
     )
 
