@@ -34,7 +34,9 @@ def get_repo_info():
         return {"repo": "", "branch": ""}
 
 def write_log_entry(log_path, entry):
-    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    log_dir = os.path.dirname(log_path)
+    if log_dir:
+        os.makedirs(log_dir, exist_ok=True)
     with open(log_path, "a", encoding="utf-8") as log_file:
         log_file.write(json.dumps(entry) + "\n")
 
