@@ -45,6 +45,27 @@ def write_log_entry(log_path, entry):
         log_file.write(json.dumps(entry) + "\n")
 
 
+def get_staged_file_list():
+    """
+    Returns a list of staged filenames (git diff --cached --name-only).
+    """
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=True
+        )
+        return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    except subprocess.CalledProcessError:
+        return []
+
+
+def confirm(prompt_text):
+    return input(f"{prompt_text} (y/N): ").strip().lower() == "y"
+
+
 def main():
     parser = argparse.ArgumentParser(description="AI Commit Message Generator")
     parser.add_argument(
@@ -70,6 +91,11 @@ def main():
         help="Print suggestions without calling OpenAI or committing"
     )
     parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show token usage and cost after suggestions"
+    )
+    parser.add_argument(
         "--log-path",
         type=str,
         default="logs/commit_log.json",
@@ -85,27 +111,17 @@ def main():
         sys.exit(0)
 
     # 1a. Also grab the list of staged filenames
-    try:
-        result_files = subprocess.run(
-            ["git", "diff", "--cached", "--name-only"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-            check=True
-        )
-        file_list = [line.strip() for line in result_files.stdout.splitlines() if line.strip()]
-    except subprocess.CalledProcessError:
-        file_list = []
+    file_list = get_staged_file_list()
 
-    # 2. If dry run, just print and exit
+    # 2. If dry run, print diff + files and exit
     if args.dry_run:
-        print("Diff to be sent to GPT:\n")
-        print(diff_text)
-        print("\nFiles changed:", ", ".join(file_list) if file_list else "None")
+        print("DRY RUN MODE\n")
+        print("Files changed:", ", ".join(file_list) if file_list else "None")
+        print("\nDiff:\n", diff_text)
         sys.exit(0)
 
-    # 3. Generate commit message suggestions and token stats
-    print(f"Using model: {args.model}, generating {args.num_suggestions} suggestions...")
+    # 3. Generate suggestions
+    print(f"Using model: {args.model}, generating {args.num_suggestions} suggestions...\n")
     suggestions, input_tokens, output_tokens = generate_commit_messages(
         diff_text,
         file_list=file_list,
@@ -113,33 +129,30 @@ def main():
         model=args.model
     )
     if not suggestions:
-        print("No suggestions returned from OpenAI. Exiting.")
+        print("No suggestions returned. Aborting.")
         sys.exit(1)
 
     # 4. Show suggestions
-    print("\nHere are your commit message suggestions:\n")
+    print("Here are your commit message suggestions:\n")
     for idx, msg in enumerate(suggestions, start=1):
         print(f"{idx}. {msg}")
 
-    # 5. Ask the user to pick one or type a custom message
-    print(f"\nEnter the number of the suggestion to use (1-{args.num_suggestions}), or press ENTER to type your own:")
-    user_choice = input(f"Choice [1-{args.num_suggestions} or ENTER]: ").strip()
-
+    # 5. Prompt user to choose one or type their own
+    user_choice = input(f"\nEnter 1-{args.num_suggestions} to select a suggestion, or press ENTER to type your own: ").strip()
     if user_choice.isdigit() and 1 <= int(user_choice) <= args.num_suggestions:
-        index = int(user_choice) - 1
-        final_message = suggestions[index]
+        final_message = suggestions[int(user_choice) - 1]
     else:
-        final_message = input("Enter your custom commit message: ").strip()
+        final_message = input("Type your custom commit message: ").strip()
         if not final_message:
-            print("No commit message provided. Exiting without committing.")
+            print("No commit message provided. Exiting.")
             sys.exit(0)
 
-    # 6. Prepare log entry
+    # 6. Prepare and write log
     repo_info = get_repo_info()
     timestamp = datetime.now().isoformat()
     cost_input = (input_tokens / 1000) * 0.0015
     cost_output = (output_tokens / 1000) * 0.002
-    total_cost = cost_input + cost_output
+    total_cost = round(cost_input + cost_output, 6)
 
     log_entry = {
         "timestamp": timestamp,
@@ -150,32 +163,23 @@ def main():
         "suggestions": suggestions,
         "chosen_message": final_message,
         "tokens": {"input": input_tokens, "output": output_tokens},
-        "cost_usd": round(total_cost, 6),
+        "cost_usd": total_cost,
         "model": args.model
     }
     write_log_entry(args.log_path, log_entry)
 
+    if args.verbose:
+        print(f"\nToken usage: {input_tokens} input, {output_tokens} output → Cost: ${total_cost:.6f}")
+
     # 7. Confirm and run git commit
-    if args.auto_commit:
-        print(f"Auto-commit enabled. Committing with message: {final_message}")
+    if args.auto_commit or confirm(f"\nRun: git commit -m \"{final_message}\"?"):
         try:
             subprocess.run(["git", "commit", "-m", final_message], check=True)
-            print("✅ Commit created successfully.")
+            print("✅ Commit created.")
         except subprocess.CalledProcessError as e:
             print("Error running git commit:", e)
-            sys.exit(1)
     else:
-        print(f"\nAbout to run:\n    git commit -m \"{final_message}\"\n")
-        run_commit = input("Proceed with commit? (y/N): ").strip().lower()
-        if run_commit == "y":
-            try:
-                subprocess.run(["git", "commit", "-m", final_message], check=True)
-                print("✅ Commit created successfully.")
-            except subprocess.CalledProcessError as e:
-                print("Error running git commit:", e)
-                sys.exit(1)
-        else:
-            print("Aborted. You can manually commit using the suggested message.")
+        print("Commit aborted.")
 
 if __name__ == "__main__":
     main()

@@ -7,46 +7,42 @@ from dotenv import load_dotenv
 # Load environment variables from .env
 load_dotenv()
 
-# Read API key
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise ValueError("No OPENAI_API_KEY found. Make sure your .env file is set up.")
 
-# Initialize OpenAI client (v1.x syntax)
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 def generate_commit_messages(
     diff_text: str,
-    file_list: list[str],             # New parameter: list of staged filenames
+    file_list: list[str],
     n_suggestions: int = 3,
     model: str = "gpt-3.5-turbo"
 ):
     """
-    Sends diff (and file list) to OpenAI and returns:
-    - list of suggestions
-    - input_tokens, output_tokens for cost tracking
+    Sends the diff and file list to OpenAI and returns:
+    - list of commit suggestions
+    - token usage stats
     """
-    # Build a comma-separated list of changed files
     files_str = ", ".join(file_list) if file_list else "None"
     
     prompt = (
-        "You are a professional assistant that writes clear, concise Git commit messages "
-        "based on which files have changed and the code diff. Do NOT include any emojis or bullet points—just plain text.\n\n"
+        f"Here is a Git diff and list of changed files.\n\n"
         f"Files changed: {files_str}\n\n"
-        f"Unified diff of staged changes:\n{diff_text}\n\n"
-        f"Based on these files and the diff, suggest {n_suggestions} commit message(s), "
-        "each on its own line without any emojis or numbering."
+        f"Git diff:\n{diff_text}\n\n"
+        f"Generate exactly {n_suggestions} concise Git commit messages summarizing these changes. "
+        f"Return them as a numbered list (1., 2., 3.)."
     )
 
     try:
         response = client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": "You generate Git commit messages without emojis."},
+                {"role": "system", "content": "You are an assistant that writes clear, helpful Git commit messages."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.0,
-            max_tokens=200
+            temperature=0,
+            max_tokens=300
         )
     except Exception as e:
         print("Error calling OpenAI API:", e)
@@ -56,10 +52,13 @@ def generate_commit_messages(
     input_tokens = response.usage.prompt_tokens
     output_tokens = response.usage.completion_tokens
 
+    # Parse lines that start with '1.', '2.', etc.
     suggestions = []
     for line in message_text.splitlines():
-        clean = line.strip().lstrip("-•1234567890. ").strip()
-        if clean:
-            suggestions.append(clean)
+        line = line.strip()
+        if line[:2] in {"1.", "2.", "3.", "4.", "5."}:  # basic safeguard
+            cleaned = line[2:].strip()
+            if cleaned:
+                suggestions.append(cleaned)
 
     return suggestions[:n_suggestions], input_tokens, output_tokens
