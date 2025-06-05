@@ -13,11 +13,24 @@ def get_staged_diff() -> str:
             ["git", "diff", "--cached"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            encoding="utf-8",   # Force UTF-8 decoding
-            errors="replace",   # Replace any undecodable characters
+            encoding="utf-8",
+            errors="replace",
             check=True
         )
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
         print("❌ Error retrieving staged diff:", e.stderr, file=sys.stderr)
         sys.exit(1)
+
+def extract_changed_files(diff: str) -> list:
+    """
+    Parses the diff output to get a list of changed file paths.
+    """
+    files = []
+    for line in diff.splitlines():
+        if line.startswith("diff --git"):
+            parts = line.split()
+            if len(parts) >= 3:
+                filename = parts[2][2:]  # Strip 'a/' prefix
+                files.append(filename)
+    return list(set(files))  # Deduplicate
