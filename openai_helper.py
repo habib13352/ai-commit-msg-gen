@@ -1,61 +1,52 @@
 # openai_helper.py
 
 import os
-import openai
+from openai import OpenAI
 from dotenv import load_dotenv
 
-# Load .env variables
+# Load environment variables from .env
 load_dotenv()
 
+# Read API key
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
-    raise ValueError("No OPENAI_API_KEY found in environment. Please create a .env file with your key.")
+    raise ValueError("No OPENAI_API_KEY found. Make sure your .env file is set up.")
 
-openai.api_key = OPENAI_API_KEY
+# Initialize OpenAI client (new v1.x syntax)
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 def generate_commit_messages(diff_text: str, n_suggestions: int = 3) -> list[str]:
     """
-    Given a git diff text, send it to OpenAI and return a list of commit message suggestions.
-    - diff_text: the raw output of `git diff --cached`
-    - n_suggestions: how many different commit messages to request
+    Send a Git diff to OpenAI and get back commit message suggestions.
     """
     prompt = (
         "You are a helpful assistant that writes concise, descriptive Git commit messages.\n"
         "Below is the unified diff of staged changes (git diff --cached):\n\n"
         f"{diff_text}\n\n"
-        "Based on these changes, suggest "
-        f"{n_suggestions} commit message(s), each on its own line (do NOT include bullet characters).\n"
-        "Be concise (e.g., 'Fix bug in user authentication')."
+        f"Based on these changes, suggest {n_suggestions} commit message(s), "
+        "each on its own line without numbering or bullet points. Be brief and informative."
     )
 
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You generate Git commit messages."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,
-            max_tokens=200,
-            n=1
+            max_tokens=200
         )
     except Exception as e:
         print("Error calling OpenAI API:", e)
         return []
 
-    # Extract the assistant's reply text
+    # Parse response text into individual commit message lines
     message_text = response.choices[0].message.content.strip()
 
-    # Split into lines, strip any leading "- " or numbering if present
     suggestions = []
     for line in message_text.splitlines():
-        clean = line.strip()
-        # Remove common leading characters like "- ", "1. ", "• "
-        if clean.startswith(("-", "•")):
-            clean = clean.lstrip("-•").strip()
-        if clean and not clean.lower().startswith("1") and not clean.lower().startswith("2") and not clean.lower().startswith("3"):
-            # If the model tries numbering "1. Foo", strip "1."
-            clean = clean.lstrip("1234567890. ").strip()
+        clean = line.strip().lstrip("-•1234567890. ").strip()
         if clean:
             suggestions.append(clean)
 
