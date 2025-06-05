@@ -101,7 +101,7 @@ Estimated Cost: $0.000339
 
 ------------------------------------------------------------
 
-🔮 Future Improvements
+🔮 Future Improvements (WIP)
 ----------------------
 - Git Hook Integration (e.g. prepare-commit-msg)
 - Command-line options: --num-suggestions, --auto-commit, --dry-run

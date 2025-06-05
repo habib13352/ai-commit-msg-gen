@@ -17,3 +17,5 @@ venv/
 
 # logs
 logs/
+commit_log.json
+commit_log.txt

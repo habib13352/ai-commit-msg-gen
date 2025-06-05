@@ -1,4 +1,5 @@
 # diff_reader.py
+# so far this is working
 
 import subprocess
 import sys
