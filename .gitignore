@@ -1,0 +1,14 @@
+# Ignore Python bytecode and caches
+__pycache__/
+*.pyc
+
+# Ignore environment file containing secrets
+.env
+
+# Ignore any IDE/editor-specific folders
+.vscode/
+.idea/
+
+# (If you ever create a venv folder, ignore it too)
+.venv/
+venv/
