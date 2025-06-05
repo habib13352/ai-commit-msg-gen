@@ -1,9 +1,9 @@
 # openai_helper.py
 
 import os
+import json # is this needed?
 from openai import OpenAI
 from dotenv import load_dotenv
-import re
 
 # Load environment variables from .env
 load_dotenv()
@@ -16,26 +16,10 @@ if not OPENAI_API_KEY:
 # Initialize OpenAI client (v1.x syntax)
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-def strip_emojis(text: str) -> str:
-    """
-    Remove any emoji characters from the given text.
-    """
-    # This regex matches most emoji codepoints
-    emoji_pattern = re.compile(
-        "["
-        "\U0001F600-\U0001F64F"  # emoticons
-        "\U0001F300-\U0001F5FF"  # symbols & pictographs
-        "\U0001F680-\U0001F6FF"  # transport & map symbols
-        "\U0001F1E0-\U0001F1FF"  # flags (iOS)
-        "]+",
-        flags=re.UNICODE
-    )
-    return emoji_pattern.sub(r"", text)
-
-def generate_commit_messages(diff_text: str, n_suggestions: int = 3):
+def generate_commit_messages(diff_text: str, n_suggestions: int = 3, model: str = "gpt-3.5-turbo"):
     """
     Sends diff to OpenAI and returns:
-    - list of suggestions (without emojis)
+    - list of suggestions
     - input_tokens, output_tokens for cost tracking
     """
     prompt = (
@@ -49,29 +33,25 @@ def generate_commit_messages(diff_text: str, n_suggestions: int = 3):
 
     try:
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=model,
             messages=[
                 {"role": "system", "content": "You generate Git commit messages without emojis."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.0,    # deterministic style; no emojis
+            temperature=0.0,
             max_tokens=200
         )
     except Exception as e:
         print("Error calling OpenAI API:", e)
         return [], 0, 0
 
-    raw_text = response.choices[0].message.content.strip()
+    message_text = response.choices[0].message.content.strip()
     input_tokens = response.usage.prompt_tokens
     output_tokens = response.usage.completion_tokens
 
-    # Split into lines, strip emojis and any numbering/characters
     suggestions = []
-    for line in raw_text.splitlines():
-        clean = line.strip()
-        clean = strip_emojis(clean)            # strip any remaining emoji
-        clean = clean.lstrip("-•1234567890. ") # remove bullet/number prefixes
-        clean = clean.strip()
+    for line in message_text.splitlines():
+        clean = line.strip().lstrip("-•1234567890. ").strip()
         if clean:
             suggestions.append(clean)
 

@@ -1,39 +1,116 @@
 # main.py
-# test 1, will it work off the rip?
-# no, what about test 2? YES!
 
+import argparse
 import sys
 import subprocess
 import os
+import json
 from datetime import datetime
 
 from diff_reader import get_staged_diff
 from openai_helper import generate_commit_messages
 
+def get_repo_info():
+    """
+    Returns a dict with repository name and current branch.
+    If not in a Git repo, returns empty strings.
+    """
+    try:
+        repo_path = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=True
+        ).stdout.strip()
+        repo_name = os.path.basename(repo_path)
+        branch = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=True
+        ).stdout.strip()
+        return {"repo": repo_name, "branch": branch}
+    except subprocess.CalledProcessError:
+        return {"repo": "", "branch": ""}
+
+
+def write_log_entry(log_path, entry):
+    """
+    Appends a JSON entry (as one line) to the log file.
+    """
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    with open(log_path, "a", encoding="utf-8") as log_file:
+        log_file.write(json.dumps(entry) + "\n")
+
+
 def main():
+    parser = argparse.ArgumentParser(description="AI Commit Message Generator")
+    parser.add_argument(
+        "-n", "--num-suggestions",
+        type=int,
+        default=3,
+        help="Number of commit message suggestions to generate (default: 3)"
+    )
+    parser.add_argument(
+        "-m", "--model",
+        type=str,
+        default="gpt-3.5-turbo",
+        help="OpenAI model to use (e.g., gpt-3.5-turbo, gpt-4)"
+    )
+    parser.add_argument(
+        "--auto-commit",
+        action="store_true",
+        help="Automatically run 'git commit' with the selected message (skip prompt)"
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print suggestions without calling OpenAI or committing"
+    )
+    parser.add_argument(
+        "--log-path",
+        type=str,
+        default="logs/commit_log.json",
+        help="Path to the JSON log file (default: logs/commit_log.json)"
+    )
+
+    args = parser.parse_args()
+
     # 1. Get the staged diff
     diff_text = get_staged_diff()
     if not diff_text.strip():
         print("No staged changes found. Please `git add <files>` before running this tool.")
         sys.exit(0)
 
-    # 2. Generate commit message suggestions and token stats
-    print("\nGenerating commit message suggestions...\n")
-    suggestions, input_tokens, output_tokens = generate_commit_messages(diff_text, n_suggestions=3)
+    # 2. If dry run, just print and exit
+    if args.dry_run:
+        print("Diff to be sent to GPT:\n")
+        print(diff_text)
+        sys.exit(0)
+
+    # 3. Generate commit message suggestions and token stats
+    print(f"Using model: {args.model}, generating {args.num_suggestions} suggestions...")
+    suggestions, input_tokens, output_tokens = generate_commit_messages(
+        diff_text,
+        n_suggestions=args.num_suggestions,
+        model=args.model
+    )
     if not suggestions:
         print("No suggestions returned from OpenAI. Exiting.")
         sys.exit(1)
 
-    # 3. Show suggestions
-    print("Here are your commit message suggestions:\n")
+    # 4. Show suggestions
+    print("\nHere are your commit message suggestions:\n")
     for idx, msg in enumerate(suggestions, start=1):
         print(f"{idx}. {msg}")
 
-    # 4. Ask the user to pick one or type a custom message
-    print("\nEnter the number of the suggestion to use (1-3), or press ENTER to type your own:")
-    user_choice = input("Choice [1-3 or ENTER]: ").strip()
+    # 5. Ask the user to pick one or type a custom message
+    print("\nEnter the number of the suggestion to use (1-{0}), or press ENTER to type your own:".format(args.num_suggestions))
+    user_choice = input(f"Choice [1-{args.num_suggestions} or ENTER]: ").strip()
 
-    if user_choice in {"1", "2", "3"}:
+    if user_choice.isdigit() and 1 <= int(user_choice) <= args.num_suggestions:
         index = int(user_choice) - 1
         final_message = suggestions[index]
     else:
@@ -42,31 +119,29 @@ def main():
             print("No commit message provided. Exiting without committing.")
             sys.exit(0)
 
-    # 5. Log everything to logs/commit_log.txt
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    log_folder = "logs"
-    os.makedirs(log_folder, exist_ok=True)
-    log_path = os.path.join(log_folder, "commit_log.txt")
-
-    cost_input = (input_tokens / 1000) * 0.0015  # $0.0015 / 1K input tokens
-    cost_output = (output_tokens / 1000) * 0.002  # $0.002 / 1K output tokens
+    # 6. Prepare log entry
+    repo_info = get_repo_info()
+    timestamp = datetime.now().isoformat()
+    cost_input = (input_tokens / 1000) * 0.0015
+    cost_output = (output_tokens / 1000) * 0.002
     total_cost = cost_input + cost_output
 
-    with open(log_path, "a", encoding="utf-8") as log_file:
-        log_file.write(f"\n---\n🕒 Timestamp: {timestamp}\n")
-        log_file.write("📄 Diff Sent to GPT:\n")
-        log_file.write(diff_text.strip() + "\n\n")
-        log_file.write("🤖 GPT Suggestions:\n")
-        for i, s in enumerate(suggestions, 1):
-            log_file.write(f"{i}. {s}\n")
-        log_file.write(f"\n✅ Selected Commit Message: {final_message}\n")
-        log_file.write(f"\n📊 Token Usage: {input_tokens} input, {output_tokens} output\n")
-        log_file.write(f"💸 Estimated Cost: ${total_cost:.6f}\n")
+    log_entry = {
+        "timestamp": timestamp,
+        "repo": repo_info.get("repo", ""),
+        "branch": repo_info.get("branch", ""),
+        "diff": diff_text,
+        "suggestions": suggestions,
+        "chosen_message": final_message,
+        "tokens": {"input": input_tokens, "output": output_tokens},
+        "cost_usd": round(total_cost, 6),
+        "model": args.model
+    }
+    write_log_entry(args.log_path, log_entry)
 
-    # 6. Confirm and run git commit
-    print(f"\nAbout to run:\n    git commit -m \"{final_message}\"\n")
-    run_commit = input("Proceed with commit? (y/N): ").strip().lower()
-    if run_commit == "y":
+    # 7. Confirm and run git commit
+    if args.auto_commit:
+        print(f"Auto-commit enabled. Committing with message: {final_message}")
         try:
             subprocess.run(["git", "commit", "-m", final_message], check=True)
             print("✅ Commit created successfully.")
@@ -74,7 +149,17 @@ def main():
             print("Error running git commit:", e)
             sys.exit(1)
     else:
-        print("Aborted. You can manually commit using the suggested message.")
+        print(f"\nAbout to run:\n    git commit -m \"{final_message}\"\n")
+        run_commit = input("Proceed with commit? (y/N): ").strip().lower()
+        if run_commit == "y":
+            try:
+                subprocess.run(["git", "commit", "-m", final_message], check=True)
+                print("✅ Commit created successfully.")
+            except subprocess.CalledProcessError as e:
+                print("Error running git commit:", e)
+                sys.exit(1)
+        else:
+            print("Aborted. You can manually commit using the suggested message.")
 
 if __name__ == "__main__":
     main()
