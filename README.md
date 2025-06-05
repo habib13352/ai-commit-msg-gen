@@ -1,110 +1,84 @@
-# AI Commit Message Generator
+AI Commit Message Generator
+===========================
 
-A minimal CLI utility that reads your staged Git diff and uses OpenAI’s GPT-3.5 API to suggest clear, concise commit messages. It logs each invocation (diff, suggestions, chosen message, token usage, and estimated cost) for easy auditing.
+A minimal CLI utility that reads your staged Git diff and uses OpenAI’s GPT-3.5 API to suggest clear, concise commit messages.
 
-<details>
-<summary><strong>Prerequisites</strong></summary>
+Each run logs details (diff, suggestions, chosen message, token usage, cost) for easy auditing and tracking.
 
-1. **Git** installed (so `git diff --cached` and `git commit` work)  
-2. **Python 3.8+** installed  
-3. An **OpenAI API Key** (from https://platform.openai.com/account/api-keys)
+------------------------------------------------------------
 
-</details>
+📦 Prerequisites
+----------------
+- Git installed (so `git diff --cached` and `git commit` work)
+- Python 3.8+
+- OpenAI API key — Get yours from: https://platform.openai.com/account/api-keys
 
-<details>
-<summary><strong>Setup</strong></summary>
+------------------------------------------------------------
 
-1. **Clone or download** this repository:
-   ```bash
+⚙️ Setup
+--------
+1. Clone the repo:
    git clone https://github.com/habib13352/ai-commit-msg-gen.git
    cd ai-commit-msg-gen
-   ```
 
-2. **Install dependencies**:
-   ```bash
+2. Install dependencies:
    pip install openai python-dotenv
-   ```
 
-3. **Copy `.env.example` to `.env`** and insert your API key:
-   ```bash
+3. Set up your `.env` file:
    cp .env.example .env
-   ```
-   Edit `.env` so it contains:
-   ```
+
+   Then edit `.env` and insert your API key:
    OPENAI_API_KEY=sk-...
-   ```
 
-4. **Ensure** `.env` and `logs/` are listed in `.gitignore` (they are by default).
+4. Ensure `.env` and the `logs/` folder are listed in `.gitignore`.
 
-</details>
+------------------------------------------------------------
 
-<details>
-<summary><strong>How to Use</strong></summary>
-
-1. **Stage your changes** in any Git repository:
-   ```bash
+🚀 How to Use
+-------------
+1. Stage your changes:
    git add <file1> <file2> ...
-   ```
 
-2. **Run the script** from your repository’s root (where `main.py` lives):
-   ```bash
+2. Run the script:
    python main.py
-   ```
 
-3. **Pick or type a message**:
-   - The tool displays up to 3 AI-generated suggestions.
-   - Enter a number (`1`, `2`, `3`) to choose one, or press ENTER to type your own.
-   - Confirm (`y`) to run `git commit -m "..."`, or any other key to abort.
+3. Choose your commit message:
+   - Up to 3 AI suggestions will be shown.
+   - Enter `1`, `2`, or `3` to pick a suggestion, or press ENTER to type your own.
+   - Press `y` to confirm and commit, or any other key to cancel.
 
-</details>
+------------------------------------------------------------
 
-<details>
-<summary><strong>Logging & Cost Tracking</strong></summary>
+🧾 Logging & Cost Tracking
+--------------------------
+Each run appends a log to `logs/commit_log.txt` containing:
 
-- Each run writes to `logs/commit_log.txt`.  
-- Logged data includes:
-  - Timestamp
-  - Full diff sent to GPT
-  - All suggestions returned by GPT
-  - Your selected commit message (or custom message)
-  - Token usage (`prompt_tokens` and `completion_tokens`)
-  - Estimated cost (based on GPT-3.5 pricing)
+- Timestamp
+- Git diff sent to GPT
+- Suggestions returned
+- Selected message
+- Token usage (prompt_tokens, completion_tokens)
+- Estimated cost
 
-- **GPT-3.5 Pricing**:
-  - $0.0015 per 1 000 input tokens
-  - $0.0020 per 1 000 output tokens
+GPT-3.5 Pricing (as of June 2025):
+- $0.0015 per 1,000 input tokens
+- $0.0020 per 1,000 output tokens
 
-Use these logs to monitor usage and budget.
+------------------------------------------------------------
 
-</details>
+📁 File Overview
+----------------
+- main.py              → Core CLI logic: reads diffs, prompts GPT, logs, commits
+- diff_reader.py       → Gets UTF-8 decoded Git staged diff safely
+- openai_helper.py     → Handles OpenAI API calls, removes emojis, returns suggestions
+- .env.example         → Example environment file with placeholder key
+- requirements.txt     → Required Python packages
+- logs/commit_log.txt  → Stores commit suggestion logs and cost tracking
 
-<details>
-<summary><strong>File Overview</strong></summary>
+------------------------------------------------------------
 
-- **`main.py`**  
-  - Orchestrates the CLI: reads staged diff, retrieves suggestions, logs details, and commits.
-
-- **`diff_reader.py`**  
-  - Runs `git diff --cached` with UTF-8 decoding and error replacement.
-
-- **`openai_helper.py`**  
-  - Sends the diff to OpenAI, strips any emojis, returns suggestions and token counts.
-
-- **`.env.example`**  
-  - Template for your `.env` file.
-
-- **`requirements.txt`**  
-  - Lists `openai` and `python-dotenv`.
-
-- **`logs/commit_log.txt`**  
-  - Auto-created folder and file for invocation logs.
-
-</details>
-
-<details>
-<summary><strong>Example Log Entry (`logs/commit_log.txt`)</strong></summary>
-
-```
+📝 Example Log Entry
+--------------------
 ---
 Timestamp: 2025-06-05 10:15:22
 Diff Sent to GPT:
@@ -124,36 +98,20 @@ Selected Commit Message: Add logging for commit details and cost estimation
 
 Token Usage: 134 input, 42 output
 Estimated Cost: $0.000339
-```
 
-</details>
+------------------------------------------------------------
 
-<details>
-<summary><strong>Future Improvements & Ideas</strong></summary>
+🔮 Future Improvements
+----------------------
+- Git Hook Integration (e.g. prepare-commit-msg)
+- Command-line options: --num-suggestions, --auto-commit, --dry-run
+- Conventional commit support: feat:, fix:, etc.
+- CLI packaging for pip (e.g. pip install ai-commit-msg)
+- Log analyzer for usage/cost trends
+- Budget alerts for monthly cost caps
 
-- **Git Hook Integration**  
-  Automatically run this tool as a `prepare-commit-msg` hook so you don’t need to invoke `python main.py` manually.
+------------------------------------------------------------
 
-- **Command-Line Options**  
-  Add flags like `--num-suggestions`, `--auto-commit`, `--dry-run`, or `--model` for flexibility.
-
-- **Conventional Commit Style**  
-  Allow users to choose "feat:", "fix:", or other prefixes in commit messages.
-
-- **CLI Packaging**  
-  Package as a Python package on PyPI (`pip install ai-commit-msg`) for global installation.
-
-- **Log Analysis Script**  
-  Provide a script to summarize token usage and cost over time.
-
-- **Budget Alerts**  
-  Warn or prevent usage when projected monthly cost exceeds a specified threshold.
-
-</details>
-
-<details>
-<summary><strong>License</strong></summary>
-
-MIT License — use, modify, and distribute freely.
-
-</details>
+📜 License
+----------
+MIT License — free to use, modify, and distribute.
