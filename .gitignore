@@ -14,3 +14,6 @@ __pycache__/
 # (If you ever create a venv folder, ignore it too)
 .venv/
 venv/
+
+# logs
+logs/

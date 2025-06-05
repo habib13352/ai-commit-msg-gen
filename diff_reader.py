@@ -9,15 +9,15 @@ def get_staged_diff() -> str:
     Returns the raw diff string. If an error occurs, prints to stderr and exits.
     """
     try:
-        completed_process = subprocess.run(
+        result = subprocess.run(
             ["git", "diff", "--cached"],
-            check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            encoding="utf-8",   # Force UTF-8 decoding
+            errors="replace",   # Replace any undecodable characters
+            check=True
         )
-        diff_text = completed_process.stdout
-        return diff_text
+        return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        print("Error retrieving staged diff:", e.stderr, file=sys.stderr)
+        print("❌ Error retrieving staged diff:", e.stderr, file=sys.stderr)
         sys.exit(1)

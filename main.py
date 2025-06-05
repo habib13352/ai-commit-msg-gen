@@ -1,9 +1,11 @@
 # main.py
-# test 1, will it work of the rip?
+# test 1, will it work off the rip?
 # no, what about test 2? YES!
 
 import sys
 import subprocess
+import os
+from datetime import datetime
 
 from diff_reader import get_staged_diff
 from openai_helper import generate_commit_messages
@@ -15,9 +17,9 @@ def main():
         print("No staged changes found. Please `git add <files>` before running this tool.")
         sys.exit(0)
 
-    # 2. Generate commit message suggestions
+    # 2. Generate commit message suggestions and token stats
     print("\nGenerating commit message suggestions...\n")
-    suggestions = generate_commit_messages(diff_text, n_suggestions=3)
+    suggestions, input_tokens, output_tokens = generate_commit_messages(diff_text, n_suggestions=3)
     if not suggestions:
         print("No suggestions returned from OpenAI. Exiting.")
         sys.exit(1)
@@ -40,7 +42,28 @@ def main():
             print("No commit message provided. Exiting without committing.")
             sys.exit(0)
 
-    # 5. Confirm and run git commit
+    # 5. Log everything to logs/commit_log.txt
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_folder = "logs"
+    os.makedirs(log_folder, exist_ok=True)
+    log_path = os.path.join(log_folder, "commit_log.txt")
+
+    cost_input = (input_tokens / 1000) * 0.0015  # $0.0015 / 1K input tokens
+    cost_output = (output_tokens / 1000) * 0.002  # $0.002 / 1K output tokens
+    total_cost = cost_input + cost_output
+
+    with open(log_path, "a", encoding="utf-8") as log_file:
+        log_file.write(f"\n---\n🕒 Timestamp: {timestamp}\n")
+        log_file.write("📄 Diff Sent to GPT:\n")
+        log_file.write(diff_text.strip() + "\n\n")
+        log_file.write("🤖 GPT Suggestions:\n")
+        for i, s in enumerate(suggestions, 1):
+            log_file.write(f"{i}. {s}\n")
+        log_file.write(f"\n✅ Selected Commit Message: {final_message}\n")
+        log_file.write(f"\n📊 Token Usage: {input_tokens} input, {output_tokens} output\n")
+        log_file.write(f"💸 Estimated Cost: ${total_cost:.6f}\n")
+
+    # 6. Confirm and run git commit
     print(f"\nAbout to run:\n    git commit -m \"{final_message}\"\n")
     run_commit = input("Proceed with commit? (y/N): ").strip().lower()
     if run_commit == "y":
