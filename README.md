@@ -51,7 +51,7 @@ Each run logs details (diff, suggestions, chosen message, token usage, cost) for
 
 🧾 Logging & Cost Tracking
 --------------------------
-Each run appends a log to `logs/commit_log.txt` containing:
+Each run appends a log to `logs/commit_log.json` containing:
 
 - Timestamp
 - Git diff sent to GPT
@@ -70,10 +70,10 @@ GPT-3.5 Pricing (as of June 2025):
 ----------------
 - main.py              → Core CLI logic: reads diffs, prompts GPT, logs, commits
 - diff_reader.py       → Gets UTF-8 decoded Git staged diff safely
-- openai_helper.py     → Handles OpenAI API calls, removes emojis, returns suggestions
+- openai_helper.py     → Handles OpenAI API calls, ensures commit messages contain no emojis, returns suggestions
 - .env.example         → Example environment file with placeholder key
 - requirements.txt     → Required Python packages
-- logs/commit_log.txt  → Stores commit suggestion logs and cost tracking
+- logs/commit_log.json → Stores commit suggestion logs and cost tracking
 
 ------------------------------------------------------------
 
