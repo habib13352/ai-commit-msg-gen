@@ -77,17 +77,22 @@ def main():
     for idx, msg in enumerate(suggestions, start=1):
         print(f"{idx}. {msg}")
 
-    print("\nEnter the number of the suggestion to use (1-{0}), or press ENTER to type your own:".format(args.num_suggestions))
-    user_choice = input(f"Choice [1-{args.num_suggestions} or ENTER]: ").strip()
+    print("\nEnter the number of the suggestion to use (1-{0}), or press ENTER to type your own:".format(len(suggestions)))
 
-    if user_choice.isdigit() and 1 <= int(user_choice) <= args.num_suggestions:
-        index = int(user_choice) - 1
-        final_message = suggestions[index]
-    else:
-        final_message = input("Enter your custom commit message: ").strip()
-        if not final_message:
-            print("No commit message provided. Exiting without committing.")
-            sys.exit(0)
+    while True:
+        user_choice = input(f"Choice [1-{len(suggestions)} or ENTER]: ").strip()
+        if user_choice == "":
+            final_message = input("Enter your custom commit message: ").strip()
+            if not final_message:
+                print("No commit message provided. Exiting without committing.")
+                sys.exit(0)
+            break
+        elif user_choice.isdigit() and 1 <= int(user_choice) <= len(suggestions):
+            index = int(user_choice) - 1
+            final_message = suggestions[index]
+            break
+        else:
+            print(f"Please enter a number between 1 and {len(suggestions)}, or press ENTER to type your own.")
 
     repo_info = get_repo_info()
     timestamp = datetime.now().isoformat()
