@@ -27,11 +27,14 @@ def extract_changed_files(diff: str) -> list:
     """
     Parses the diff output to get a list of changed file paths.
     """
-    files = []
+    files = set()
     for line in diff.splitlines():
         if line.startswith("diff --git"):
             parts = line.split()
-            if len(parts) >= 3:
-                filename = parts[2][2:]  # Strip 'a/' prefix
-                files.append(filename)
-    return list(set(files))  # Deduplicate
+            # Extract up to the two file paths following 'diff --git'
+            for path in parts[2:4]:
+                if path.startswith(("a/", "b/")):
+                    files.add(path[2:])
+                else:
+                    files.add(path)
+    return sorted(files)

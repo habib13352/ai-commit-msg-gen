@@ -112,6 +112,13 @@ Estimated Cost: $0.000339
 
 ------------------------------------------------------------
 
+🧪 Running Tests
+----------------
+1. Install `pytest` with `pip install pytest`.
+2. Run all tests from the project root using `pytest`.
+
+------------------------------------------------------------
+
 📜 License
 ----------
 MIT License — free to use, modify, and distribute.
